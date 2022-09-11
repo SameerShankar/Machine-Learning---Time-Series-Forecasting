@@ -1,0 +1,374 @@
+---
+title: 'Assignment #3'
+author: "Sameer Shankar"
+date: "3/23/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(tseries)
+library(zoo)
+```
+
+## Question 1
+
+(a)
+
+```{r reading dataset and plots, include=TRUE}
+#reading in dataset, creating time series, subsetting into train/test and
+#generating plots
+
+rimouski <- read.csv(file = "C:/Users/Personal/Downloads/rimouski.csv", sep = ",", 
+                     header = TRUE)
+rimouskits = ts(rimouski$Mean.Max.Temp, start = c(1954,1), end = c(2017,8),
+                frequency = 12)
+
+#i.)
+rimouski.train <- window(rimouskits, start=c(1954,1), end=c(2010,12))
+
+#ii.)
+rimouski.test <- window(rimouskits, start=c(2011,1), end=c(2016,12))
+
+plot(rimouski.train, xlab= "Time (in years)", ylab="Monthly Mean Max Temperature (in °C)", 
+     main = "Monthly Mean Max Temperature over Time (1954 - 2016)")
+acf(rimouski.train, main = "ACF plot", lag.max = 200)
+pacf(rimouski.train, main = "PACF plot", lag.max = 200)
+```
+
+The plot shows a strong seasonal effect. The acf (with a period of 12) is decaying very slowly as the lag increases, and it oscillates in a sinusoidal manner (damped sine). The pacf has decaying negative values, which then become positive, after which they cut off at lag 12.
+
+$\textbf{Important: }$ Please note that the Lag label for the acf and pacf plots actually denote the periods (where 12 lags make 1 period, due to the seasonal effect being annual). Therefore, if an explanation refers to lag 12, it will be referring to lag 1 on the acf/pacf plot
+
+\pagebreak
+
+(b)
+
+```{r seasonal differencing model and plots, include=TRUE}
+#seasonally difference data, generating model and plots
+
+#ii.)
+model1 <- arima(rimouski.train, seasonal = list(order = c(0,1,0), period = 12))
+model1
+
+#iii.)
+plot(resid(model1), ylab="Residual plot")
+acf(resid(model1), main = "ACF plot", lag.max = 200)
+pacf(resid(model1), main = "PACF plot", lag.max = 200)
+```
+
+i.) and ii.)
+
+A SARIMA model is expressed as:
+
+$\phi(B)\Phi(B^s)W_t = \theta(B)\Theta(B^s)Z_t$,
+
+where $W_t = \nabla^d\nabla^D_sX_t$ and  $\nabla_s X_t = X_t-X_{t-s}$
+
+Substituting for SARIMA $(0,0,0) \times (0,1,0)_{12}$, we get,
+
+$W_t = \nabla^1_{12}X_t$
+
+$W_t = X_t - X_{t-12}$
+
+Therefore,
+
+$X_t - X_{t-12} = Z_t$
+
+$X_t = X_{t-12} + Z_t$, where $Z_t \sim ~ WN(0, 6.122)$
+
+The estimated variance, $\hat{\sigma}^2$, for $Z_t$ is 6.122.  
+
+ARMA(12,0)
+
+iii.)
+The residual plot shows that observations lie between -10 and 10, but there is no observable trend or seasonality, whereas the acf plot for the seasonally differenced model still shows a slight sinusoidal pattern, however the decay happens much faster. There is a large negative value for acf at lag 12 which stands out. The pacf plot has mostly small values, apart from significant decaying negative values from lags 12, 24, ..., 72, after which the pacf cuts off.
+
+\pagebreak
+
+(c)
+
+```{r adding seasonal MA(Q) term, include=TRUE}
+#adding seasonal MA(Q) component and generating new model
+
+#iii.)
+model2 <- arima(rimouski.train, order = c(0,0,0), seasonal = c(0,1,1))
+model2
+```
+
+i.)
+We are justified in adding a seasonal MA(Q = 1) component. The acf plot in part (b) shows a spike at lag 12 in the ACF but no other significant spikes, along with exponential decay in the seasonal lags of the PACF (i.e., at lags 12, 24, 36, …). These attributes suggest that we should add the seasonal MA(Q = 1) component (in order to further address seasonality in the model).
+
+ii.)
+A SARIMA model is expressed as:
+
+$\phi(B)\Phi(B^s)W_t = \theta(B)\Theta(B^s)Z_t$,
+
+where $W_t = \nabla^d\nabla^D_sX_t$ and $\nabla_s X_t = X_t-X_{t-s}$
+
+Substituting for SARIMA $(0,0,0) \times (0,1,1)_{12}$, we get,
+
+$W_t = \nabla^1_{12}X_t$
+
+$W_t = X_t - X_{t-12}$
+
+$\Theta(B^s)Z_t = Z_t + \beta Z_{t-s}$
+
+Therefore,
+
+$X_t - X_{t-12} = Z_t + \beta Z_{t-12}$
+
+$X_t = X_{t-12} + Z_t + \beta Z_{t-12}$
+
+iii.)
+$X_t = X_{t-12} + Z_t - 0.9206Z_{t-12}$, where $Z_t \sim ~ WN(0, 3.4)$
+
+The estimated variance, $\hat{\sigma}^2$, for $Z_t$ is 3.4. $\hat{\beta} = -0.9206$.
+
+ARMA(12,12)
+
+iv.)
+A smaller AIC is preferred, and we see that AIC for model 1 is 3126.62, whereas the AIC for model 2 is 2755.96. Hence based on AIC, I would choose model 2.
+
+\pagebreak
+
+(d)
+
+```{r producing plots, fitting new model with AR(p) and diagnostics, include=TRUE}
+#generating plots from the previous model, fitting model and producing
+#diagnostics
+
+#i.)
+acf(resid(model2), main = "ACF plot", lag.max = 200)
+pacf(resid(model2), main = "PACF plot", lag.max = 200)
+
+#iii.)
+model3 <- arima(rimouski.train, order = c(1,0,0), seasonal = c(0,1,1))
+model3
+
+#iv.)
+tsdiag(model3)
+```
+
+i.)
+The acf plot for the residuals of model 2 tails-off in an exponential manner, while the pacf cuts off at lag 1, which are features that suggest adding an AR(p = 1) component is appropriate.
+
+ii.)
+A SARIMA model is expressed as:
+
+$\phi(B)\Phi(B^s)W_t = \theta(B)\Theta(B^s)Z_t$,
+
+where $W_t = \nabla^d\nabla^D_sX_t$ and  $\nabla_s X_t = X_t-X_{t-s}$
+
+Substituting for SARIMA $(1,0,0) \times (0,1,1)_{12}$, we get,
+
+$(1-\alpha B)W_t = (1 + \Theta(B^{12}))Z_t$
+
+$W_t = \nabla^1_{12}X_t$
+
+$W_t = X_t - X_{t-12}$
+
+$\Theta(B^s)Z_t = Z_t + \beta Z_{t-s}$
+
+Therefore,
+
+$(1 - \alpha B)(X_t - X_{t-12}) = Z_t + \beta Z_{t-12}$
+
+$X_t - \alpha X_{t-1} - X_{t-12} + \alpha X_{t-13} = Z_t + \beta Z_{t-12}$
+
+$X_t = \alpha X_{t-1} + X_{t-12} - \alpha X_{t-13} + Z_t + \beta Z_{t-12}$
+
+iii.)
+$X_t = 0.1808X_{t-1} + X_{t-12} - 0.1808X_{t-13} + Z_t - 0.9354Z_{t-12}$, where $Z_t \sim ~ WN(0, 3.281)$
+
+The estimated variance, $\hat{\sigma}^2$, for $Z_t$ is 3.281. $\hat{\alpha} = 0.1934$ and $\hat{\beta} = -0.9354$.
+
+ARMA(13,12)
+
+iv.)
+The diagnostics show that none of the standardized residuals stand out particularly, while the acf plot for residuals shows that there is no autocorrelation between residuals. Both of these suggest that the model is suitable.
+
+Lastly, the Ljung-Box statistic plot has large insignificant p-values for small lags, but small significant p-values lag 3 onward, which suggests that the model $\textbf{seems}$ to be adequate (but is definitely not ideal).
+
+v.)
+The AIC for model 3 is 2736.43, which is lower than the AIC for model 2 (2755.96). Hence, we have improved our model by adding the AR(1) component.
+
+\pagebreak
+
+(e)
+
+```{r plotting observed and predicted, include=TRUE}
+#generating a plot of observed and predicted data along with legend
+
+plot(rimouski.test, col = "black", type = "l", xlab = "Year", 
+     ylim = c(-10,32), ylab = "Temperature (Celsius)", 
+     main = 'Temperature predictions VS Observed values')
+lines(predict(model3, n.ahead = 72)$pred, col = "red")
+legend("topleft", legend = c("Observed values", "Predicted values"), 
+       col = c("black", "red"), lty = 1)
+```
+
+Based on the plot, we can see that the predictions seem fairly reasonable (generally not too far from the actual values in the holdout set). For the dataset, the observed values at peaks tend to be slightly higher than the predicted values, while there is also a difference between predicted and observed values at troughs. The observed value at month 50 (February 2015) was unusually low (unusually cold).
+
+\pagebreak
+
+(f)
+
+```{r plotting observed, Holt-Winters and Box-Jenkins, MSPEs, include=TRUE}
+#generating a plot of observed, Holt-Winters and Box-Jenkins along with legend,
+#and calculating MSPEs for HW and BJ
+
+#ii.)
+model4 <- HoltWinters(rimouski.train,seasonal="additive")
+model4
+plot(model4, xlab="Time", ylab="Monthly Temperature")
+
+predhw <- predict(model4,n.ahead=72)
+predbj <- predict(model3,n.ahead=72)
+plot(predict(model3, n.ahead = 72)$pred, col = "red", type = "l", xlab = "Month", 
+     ylim = c(-10,37), ylab = "Temperature", 
+     main = 'Temperature predictions VS Observed values')
+lines(rimouski.test, col = "black")
+lines(predhw, col="blue")
+
+legend("topleft", 
+       legend = c("Box-Jenkins Predicted values", "Observed values",
+                  "Holt-Winter predictions"), col = c("red", "black","blue"), lty = 1)
+
+#iii.)
+mspebj = (sum((rimouski.test - predbj$pred)^2))/length(rimouski.test)
+mspehw = (sum((rimouski.test - predhw)^2))/length(rimouski.test)
+mspebj
+mspehw
+```
+
+i.)
+The results of the Holt-Winters model indicate that there is a very slight upward trend, as the beta parameter is 0.0172. 
+
+ii.)
+Both the Box-Jenkins and Holt-Winters methods are able to make fairly accurate predictions, and they both seem to perform well (for some predictions Box-Jenkins is better, while for others Holt-Winters is more accurate).
+
+iii.)
+The R output above shows that MSPE for the Box-Jenkins model is lower (3.833) than the MSPE for the Holt-Winters model (4.496). Based on MSPE, the Box-Jenkins model is better (we want to minimize our MSPE).
+
+\pagebreak
+
+## Question 2
+
+(a)
+
+```{r reading data, generating plots, include=TRUE}
+#reading in dataset, renaming columns, generating time series and producing
+#plots
+bynd <- read.table(file = "C:/Users/Personal/Downloads/bynd.txt", header = F)
+
+colnames(bynd)[1] <- "Time"            #renaming column 1
+colnames(bynd)[2] <- "Closing_Price"   #renaming column 2
+
+#bynd <- zoo(bynd$Closing_Price, order.by = as.Date(bynd$Time))
+
+
+byndts <- ts(bynd$Closing_Price)
+
+plot(byndts, xlab= "Index", ylab="Daily closing price (in $)", 
+     main = "Daily closing price (in $) over Time")
+acf(byndts, main = "ACF plot", lag.max = 200)
+pacf(byndts, main = "PACF plot", lag.max = 200)
+``` 
+
+From the plot, we can see there is an increase in daily closing prices, followed by a decrease, after which there is a period of relatively stable prices. Towards the end however, we see that the daily closing prices are falling. There does not appear to be seasonality in the plot. The acf plot decays slowly exponentially over time, after which the values become significant but negative. The pacf cuts off immediately after lag 1.
+
+\pagebreak
+
+(b)
+
+```{r differencing and producing plots, include=TRUE}
+#differencing bynd data once and generating plots
+
+differenced <- diff(byndts, lag=1, difference=1)
+plot(differenced, main = "Plot of differenced series", xlab = "Index", ylab = "Differenced data")
+acf(differenced, main = "ACF plot", lag.max = 200)
+pacf(differenced, main = "PACF plot", lag.max = 200)
+
+``` 
+
+After differencing, both the acf and pacf cut-off immediately. The first differenced series appears stationary.
+
+\pagebreak
+
+(c)
+The model can be rewritten as,
+
+$X_t - X_{t-1} = Z_t$
+
+which is a stationary first-differenced series. The series in part (b) was differenced once and the plots indicate that it looks like a white noise process (RHS of our model). Thus, this model may be suitable.
+
+(d)
+
+This is an ARIMA(0,1,0) model.
+
+(e)
+
+```{r estimate of variance, echo=TRUE}
+#fitting model and find estimate of variance
+
+model_byndts <- arima(byndts, order = c(0,1,0))
+model_byndts
+```
+
+The estimated variance of $\{Z_t\}$, $\hat{\sigma}^2$, is 35.98.
+
+(f)
+
+For the forecast at lead time l, for any $l > 0$, we have,
+
+$\hat{x}_N(l) = E[X_{N+l} | X_N = x_N, X_{N-1} = x_{N-1}, ...]$
+
+$= E[\alpha*X_{N+l-1} + Z_{N+l} | X_N = x_N, X_{N-1} = x_{N-1}, ...]$
+
+$= \alpha*E[X_{N+l-1} | X_N = x_N, X_{N-1} = x_{N-1}, ...]$
+
+$= \alpha\hat{x}_N(l-1)=\alpha^l\hat{x}_N(l)$
+
+and when $\alpha=1$,
+
+$X_N = \hat{x}_N(l)$
+
+\pagebreak
+
+(g)
+
+```{r predictions and prediction interval, echo=TRUE}
+#obtaining prediction and standard error to find 90% Prediction Interval for
+#March 10th
+
+model_byndts_pred <- predict(model_byndts, n.ahead = 7, prediction.interval = TRUE, 
+                             level = 0.90)
+model_byndts_pred
+46.41 + c(-1,1)*qnorm(0.95)*15.870646
+```
+
+90% Prediction Interval for the stock price one week in the future (March 10th) is,
+
+(20.305,72.515)
+
+\pagebreak
+
+(h)
+
+```{r prediction and prediction interval plot, echo=TRUE}
+#plotting prediction and prediction intervals to support my argument
+
+pred_future <- predict(model_byndts, n.ahead = 100, prediction.interval = T, level = 0.90)
+plot(1:100, pred_future$pred, type = "l", xlab = "Months in the future", ylim = c(-100,200), 
+     ylab = "Predicted share prices", main = "Predicted share prices in the near future")
+lines(1:100,46.41+c(-1)*qnorm(0.95)*pred_future$se, lty=2)
+lines(1:100,46.41+c(1)*qnorm(0.95)*pred_future$se ,lty=2)
+```
+
+As is common in Economics and Finance, I would assume that the director is risk-averse, and the director would avoid selling shares at a lower prices. Given that the prediction interval gets wider as we predict further into the future (as shown in the plot above) there is greater uncertainty, and therefore there is greater risk involved if the director waits to sell shares in the future.
+
+Furthermore, the plot in part (a) suggests that share prices are declining towards the end (from approximately index 500 to 716) and may decline further in the future.
+
+Due to the two reasons mentioned above, I would recommend that the director sell shares now.

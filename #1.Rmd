@@ -1,0 +1,231 @@
+---
+title: '#1'
+author: "Sameer Shankar"
+date: "1/29/2022"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("zoo")
+library("tseries")
+library("imputeTS")
+```
+
+## R Markdown
+
+### Question 1
+(a)
+
+```{r}
+#read in dataset, rename column, subset the time series from 
+#Jan 1954 - Dec 2016 and create a plot for Monthly Mean Max 
+#Temperature against Time
+
+rimouski <- read.csv(file = "C:/Users/Personal/Downloads/rimouski.csv")
+colnames(rimouski)[8] <- "Monthly_Mean_Max_Temperature"
+
+x_whole = ts(rimouski$Monthly_Mean_Max_Temperature, start = c(1952,1), 
+             frequency = 12)
+x <- window(x_whole, start=c(1954,1), end=c(2016,12))
+plot(x, xlab = "Time (in years)", ylab = "Monthly Mean Max Temperature (in °C)", 
+     main = "Monthly Mean Max Temperature over Time")
+```
+
+The series does not have a trend. The series is stationary as it seems to have 
+a fixed mean, a finite variance and an autocovariance function depending only 
+on the lag. There is strong seasonal variation, where the period of seasonal 
+effect is 12 months. The additive model would be most suitable to decompose 
+the series, as the variance of temperature observations seems to remain constant 
+over time.
+
+(b)
+
+```{r}
+#find missing values, impute them and create a plot of the complete Monthly 
+#Mean Max Temperature against Time
+
+which(is.na(x))
+
+for (i in 12:nrow(rimouski))
+{
+if (is.na(rimouski$Monthly_Mean_Max_Temperature[i])) {
+rimouski$Monthly_Mean_Max_Temperature[i] = 
+  rimouski$Monthly_Mean_Max_Temperature[i-12]
+}
+}
+
+x_whole_imputed = ts(rimouski$Monthly_Mean_Max_Temperature, start = c(1952,1),
+                     frequency = 12)
+x_imputed <- window(x_whole_imputed, start=c(1954,1), end=c(2016,12))
+plot(x_imputed, xlab = "Time (in years)", ylab = "Monthly Mean Max Temperature 
+     (in °C)", main = "Monthly Mean Max Temperature over Time")
+```
+
+The missing values are;
+
+(1972, May, June),
+(1976, February),
+(1987, February, March, October),
+(2000, April, May, June)
+
+Using the LVCF imputation would be inappropriate here, as replacing the missing 
+value for month $n$ with month $(n-1)$ would make the imputed value for month n
+unlikely to be a good estimate; for example, replacing the 1972, May missing 
+value with that of 1972, April would make the imputed 1972, May a poor estimate 
+for a May value.
+
+Furthermore, after looking at the documentation for LVCF, if there are multiple
+consecutive NA values, then all consecutive NA values are replaced by the last 
+non-NA value. In the context of our dataset, it would mean that all of April, 
+May and June 2000 would be replaced by March 2000. It is very likely that the 
+imputed value for June 2000 would then be a poor estimate (highly unlikely that 
+March and June would have the similar temperatures).
+
+As we established earlier, the dataset seems to show no trend, therefore we 
+could use the previous year's same month instead to impute the current year's 
+missing value; that is, for February 1976, we could use the value from February 
+1975.
+
+(c)
+
+```{r}
+#create training and testing sets, decompose the imputed series into trend, 
+#seasonal and error components using both moving average smoothing and loess 
+#method. Plot both decompositions
+
+training <- window(x_imputed, start=c(1954,1), end=c(2015,12))
+test <- window(x_imputed, start=c(2016,1), end=c(2016,12))
+
+x_imputed_decomposition <- decompose(training, type="additive")
+plot(x_imputed_decomposition)
+
+trend <- x_imputed_decomposition$trend
+seasonal <- x_imputed_decomposition$seasonal
+error <- x_imputed_decomposition$random
+
+x_imputed_stl <- stl(training, s.window="periodic")
+plot(x_imputed_stl, main = "loess method")
+```
+
+(d)
+
+```{r}
+#lm() to the trend component of moving average decomposition
+
+t <- seq_along(training)
+y <- trend
+reg <- lm(y~t)
+summary(reg)
+```
+
+For there to be a trend, it would mean that the coefficient for the total number 
+of months (in the regression above, t) would have to be significant (at a 5% 
+level). The summary shows that the test statistic value is 15.0 and therefore 
+the p-value is less than 0.05 (significant). Hence, the linear model provides 
+evidence of a trend at the 95% confidence level.
+
+Given that at a 95% confidence level there is evidence of a trend, and at a 5% significance level, both intercept and slope are significant, the trend 
+component can be used for predictions. However, extrapolating far into the 
+future in order to make predictions can be dangerous, as this pattern may not 
+hold in the future.
+
+(e)
+
+```{r}
+#predict the monthly mean max temperatures for the test dataset for linear trend 
+#and non-linear trend, compute MSPE for both assumptions
+
+seasonal_pred <- x_imputed_decomposition$seasonal[1:12]           #the seasonal
+
+months <- c(745,746,747,748,749,750,751,752,753,754,755,756)
+trend_pred <- reg$coefficients[1] + reg$coefficients[2]*months       #the trend
+
+prediction_no_trend <- mean(na.omit(x_imputed_decomposition$trend)) + 
+  seasonal_pred
+prediction_linear_trend <- trend_pred + seasonal_pred       #trend and seasonal
+
+MSPE_trend <- ((sum((test - prediction_linear_trend)^2))/12)
+MSPE_no_trend <- ((sum((test - prediction_no_trend)^2))/12)
+
+MSPE_trend
+MSPE_no_trend
+```
+
+We can see that the MSPE with trend is lower than the MSPE without trend.
+
+(f)
+
+```{r}
+#Q-Q plot from the error component of decomposition
+
+acf(na.omit(error), type="correlation", main = "Sample Autocorrelation Plot")
+qqnorm(error)
+qqline(error, col = "steelblue", lwd = 2)
+```
+
+The Gaussian white noise assumption seems somewhat valid; the ACF plot shows 
+random values, and they are mostly insignificant.
+
+Furthermore, the Q-Q plot shows that the sample quantile observations lie on the 
+line mostly, it is only on the tails that they deviate slightly. It can be 
+argued that the bottom end deviates from the straight line (the top end does 
+not deviate as much), and therefore the error distribution is slightly 
+left-skewed (negatively skewed), but overall, this still follows the 
+Gaussian distribution quantiles fairly well.
+
+Hence, I would argue that the Gaussian white noise assumption seems invalid.
+
+### Question 2
+(a)
+
+```{r}
+#read in data, create ts of adjusted data and its plot
+
+gspc <- read.csv(file = "C:/Users/Personal/Downloads/GSPC.csv")
+x <- ts(gspc$GSPC.Adjusted, start = c(1985, 1), frequency = 365)
+plot(x, xlab = "Time (in years)", 
+     ylab = "Adj. Daily Closing Price of S&P 500 Index", 
+     main = "Adj. Daily Closing Price of S&P 500 Index over Time")
+```
+
+The plot shows that the time series is not stationary as there is an upward 
+trend (time-dependent mean -> time-series is non-stationary). From the plot, 
+there does not seem to be evidence of seasonality.
+
+(b)
+
+```{r}
+#log transformation of St/St-1, and its plot
+
+log_adjusted <- log(gspc$St.St.1)
+logx <- ts(log_adjusted, start = c(1985, 1), frequency = 365)
+plot(logx, xlab = "Time (in years)", 
+     ylab = "log(Adj. Daily Closing Price of S&P 500 Index)", 
+     main = "log(Adj. Daily Closing Price of S&P 500 Index) over Time")
+```
+
+Please note that I used Excel to create the extra columns, and used R to apply 
+the log function.
+
+In financial time series analysis (such as this), log-transformations are often
+considered in order to stabilize the variance of the time series, which makes 
+analyses more convenient.
+
+(c)
+
+```{r}
+#acf of log(St/St-1) and acf of abs(log(St/St-1))
+
+abslogx <- ts(abs(log(gspc$St.St.1)), start = c(1985, 1), frequency = 365)
+acf(logx, type="correlation", main = "Sample Autocorrelation Plot", 
+    na.action = na.pass)
+acf(abslogx, type="correlation", main = "Sample Autocorrelation Plot", 
+    na.action = na.pass)
+```
+
+We see that the ACF plot for the log-returns series shows negligible correlation 
+at most lags, whereas the ACF plot for absolute(log-returns) series shows 
+significant correlation, where all ACF observations are positive.

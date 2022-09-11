@@ -1,0 +1,343 @@
+---
+title: 'Assignment #4'
+author: "Sameer Shankar"
+date: "1/4/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(tseries)
+library(zoo)
+```
+
+## Question 1
+
+We have been given the following stochastic process,
+
+$X_t = Z_t + 0.7Z_{t-1} + 0.2Z_{t-2} - 0.1Z_{t-3}$, where $t \in Z$ and $\{Z_t\}_{t\in\mathbb{Z}}$ ~ $WN(0,1)$
+
+(a)
+
+The power spectral density function of $\{X_t\}_{t\in\mathbb{Z}}$ is,
+
+$$f(\omega) = \frac{1}{\pi}\bigg(\gamma(0) + 2\sum_{k=1}^{\infty} \gamma(k)\cos (\omega k)\bigg)$$
+
+For the MA(3) process, this becomes,
+
+$$f(\omega) = \frac{1}{\pi}\bigg(\gamma(0) + 2\Big(\gamma(1)\cos (\omega) + \gamma(2)\cos (2\omega) + \gamma(3)\cos (3\omega)\Big)\bigg)$$
+
+We then have the following,
+
+$$\gamma(k) = \begin{cases}
+\sigma^2 \sum_{i=0}^{3-k}\beta_i \beta_{i+k} & \text{ for }0 \leq k \leq 3\\
+0  & \text{ for } k > 3\\
+\gamma(-k) & \text{ for } k < 0
+\end{cases}$$
+
+for the MA(3) process. Now making the appropriate substitutions, we get
+
+$f(\omega) = \frac{1}{\pi}\bigg((1^2 + 0.7^2 + 0.2^2 + (-0.1)^2)\sigma^2  + 2\Big(\big((1 \times 0.7) + (0.7 \times 0.2) + (0.2 \times -0.1)\big)\sigma^2 \cos (\omega) + \big((1 \times 0.2)+(0.7 \times -0.1)\big)\sigma^2\cos (2\omega) + (1 \times -0.1)\sigma^2\cos (3\omega)\Big)\bigg)$
+
+using the definition of acvf of a MA process from Chapter 2.
+
+We can further simplify this, knowing that $\sigma^2 = 1$.
+
+Hence we obtain,
+
+$$f(\omega) = \frac{1}{\pi}\bigg(1.54\sigma^2  + 2\Big(0.82\sigma^2 \cos (\omega) + 0.13\sigma^2\cos (2\omega) - 0.1\sigma^2\cos (3\omega)\Big)\bigg) = \frac{1}{\pi}\Big(1.54 + 1.64\cos(\omega) + 0.26\cos(2\omega) - 0.2\cos (3\omega)\Big)$$
+
+(b)
+
+The normalized power spectral density function of $\{X_t\}_{t\in\mathbb{Z}}$ is,
+
+$$f^\ast(\omega)=\frac{f(\omega)}{\sigma_X^2}$$
+
+From chapter 2, we know that $\rho(h) = \frac{\gamma(h)}{\gamma(0)}=\frac{\gamma(h)}{\sigma_X^2}$, and thus $\gamma(0) = \sigma_X^2 = 1.54$. Therefore, using the result from part (a),
+
+$$f^\ast(\omega) = \frac{1}{1.54\pi}\Big(1.54 + 1.64\cos(\omega) + 0.26\cos(2\omega) - 0.2\cos (3\omega)\Big) = \frac{1}{\pi}\Big(1 + \frac{1.64}{1.54}\cos(\omega) + \frac{0.26}{1.54}\cos(2\omega) - \frac{0.2}{1.54}\cos (3\omega)\Big)$$
+
+$$f^\ast(\omega) = \frac{1}{\pi}\Big(1 + 1.065\cos(\omega) + 0.169\cos(2\omega) -0.130\cos (3\omega)\Big)$$
+
+(c)
+
+```{r normalized spectral density plot, include=TRUE}
+#plot of the normalized spectral density
+
+beta1 = 0.7
+beta2 = 0.2
+beta3 = -0.1
+sigma_squared = 1
+omega = seq(0,pi,by=pi/100) #vector of frequencies
+
+fun.spec <- function(w) {
+  (1/(1.54*pi))*(1.54 + 1.64*cos(w)+0.26*cos(2*w)-0.2*cos(3*w))
+}
+
+plot(omega, fun.spec(omega), type = "l", main = "normalized spectral density function", 
+     xlab = "frequency", ylab = "f*(w)")
+```
+
+The largest normalized spectral density value occurs at (angular) frequency of 0. The plot shows a general trend of normalized spectral density decreasing as (angular) frequency is increasing; lower frequencies dominate the plot. At very high frequencies (2.5 to 3), there seems to be a slight increase in normalized spectral density.
+
+## Question 2
+
+(a)
+
+The spectral density function $f_W(\omega)$ is,
+
+$$f_W(\omega) = \frac{1}{\pi}\bigg(\gamma_W(0) + 2\sum_{k=1}^{\infty} \gamma_W(k)\cos (\omega k)\bigg)$$
+
+Similar to how we established it for Q1, we know $\gamma_W(0) = \sigma_W^2$, therefore,
+
+$$f_W(\omega) = \frac{1}{\pi}\bigg(\sigma_W^2 + 2\sum_{k=1}^{\infty}Cov(W_t,W_{t-k}) \cos (\omega k)\bigg)$$
+
+Which can be further simplified to,
+
+$$f_W(\omega) = \frac{1}{\pi}\bigg(\sigma_W^2 + 2\sum_{k=1}^{\infty}Cov(X_t+Y_t,X_{t-k}+Y_{t-k}) \cos (\omega k)\bigg)$$
+
+Now, we use the fact that $\{X_t\}_{t\in\mathbb{Z}}$ and $\{Y_t\}_{t\in\mathbb{Z}}$ are independent,
+
+$\sigma_W^2 = Var(W_t) = Var(X_t+Y_t) = Var(X_t) + Var(Y_t) = \sigma_X^2 + \sigma_Y^2$ as $Cov(X_t,Y_t) = 0$
+
+and, 
+
+$$\gamma_W(k)=Cov(W_t,W_{t-k}) = Cov(X_t+Y_t,X_{t-k}+Y_{t-k}) = Cov(X_t,X_{t-k})+Cov(X_t,Y_{t-k})+Cov(Y_t,X_{t-k})+Cov(Y_t,Y_{t-k})$$ 
+
+which due to independence between $\{X_t\}_{t\in\mathbb{Z}}$ and $\{Y_t\}_{t\in\mathbb{Z}}$, gives
+
+$$\gamma_W(k) = Cov(W_t,W_{t-k}) = Cov(X_t,X_{t-k})+Cov(Y_t,Y_{t-k})=\gamma_X(k)+\gamma_Y(k)$$
+
+as $Cov(X_t,Y_{t-k}) = Cov(Y_t,X_{t-k}) = 0$ (due to independence)
+
+Now, substituting our new results into our original equation gives us the following,
+
+$$f_W(\omega) = \frac{1}{\pi}\bigg(\sigma_X^2 + \sigma_Y^2 + 2\sum_{k=1}^{\infty}\Big(\gamma_X(k)+\gamma_Y(k)\Big) \cos (\omega k)\bigg)$$
+
+By pulling the summation apart, we obtain,
+
+$$f_W(\omega) = \frac{1}{\pi}\bigg(\sigma_X^2 + \sigma_Y^2 + 2\sum_{k=1}^{\infty}\gamma_X(k) \cos (\omega k) + 2\sum_{k=1}^{\infty}\gamma_Y(k) \cos (\omega k)\bigg)$$
+
+We can separate the terms for $X$ and $Y$,
+
+$$f_W(\omega) = \frac{1}{\pi}\bigg(\sigma_X^2 + 2\sum_{k=1}^{\infty}\gamma_X(k) \cos (\omega k)\bigg) + \frac{1}{\pi}\bigg(\sigma_Y^2 + 2\sum_{k=1}^{\infty}\gamma_Y(k) \cos (\omega k)\bigg) = f_X(\omega) + f_Y(\omega)$$,
+
+and the two terms on the RHS are $f_X(\omega)$ and $f_Y(\omega)$
+
+Hence,
+
+$f_W(\omega) = f_X(\omega) + f_Y(\omega)$
+
+(b)
+
+We know $\{X_t\}_{t\in\mathbb{Z}}$ is an AR(1) process with $X_t = -0.5X_{t-1} + Z_t$, while $\{Y_t\}_{t\in\mathbb{Z}}$ and $\{Z_t\}_{t\in\mathbb{Z}}$ ~ $WN(0,\sigma^2)$ where $\sigma^2$ is their common variance.
+
+We will derive the spectral density of an AR(1) process, $X_t = \alpha X_{t-1} + Z_t$,
+
+The acvf for the AR(1) process is given by,
+
+$\gamma (k) = \sigma_X^2\alpha^{|k|}$, $k = 0, \pm 1,\pm 2, ...$
+
+Firstly, we know that
+
+$$\gamma(k) = \int_{0}^{\pi} \cos(\omega k)f(\omega)d\omega$$
+
+We then know that we can write $f(\omega)$ as follows,
+
+$$f(\omega) = \frac{1}{\pi}\sum_{k=-\infty}^{\infty} \gamma(k)\cos(\omega k)$$ 
+
+so that the spectrum is the Fourier Transform of the autocovariance function.
+
+Now using the result above, the power spectral density function is given by,
+
+$$f(\omega) = \frac{\sigma_X^2}{\pi}\bigg(1+\sum_{k=1}^{\infty} \alpha^ke^{-i\omega k} + \sum_{k=1}^{\infty} \alpha^ke^{i\omega k}\bigg)$$
+
+Therefore,
+
+$$f(\omega) = \frac{\sigma_X^2}{\pi}\bigg(1+\frac{\alpha e^{-i\omega}}{1-\alpha e^{-i\omega}} + \frac{\alpha e^{i\omega}}{1-\alpha e^{i\omega}} \bigg)$$
+
+We can then begin to simplify this expression,
+
+$$f(\omega) = \frac{\sigma_X^2}{\pi}\bigg(1+\frac{\alpha e^{-i\omega}(1-\alpha e^{i\omega}) + \alpha e^{i\omega}(1-\alpha e^{-i\omega})}{(1-\alpha e^{-i\omega})(1-\alpha e^{i\omega})} \bigg)$$
+
+$$f(\omega) = \frac{\sigma_X^2}{\pi}\bigg(1+\frac{\alpha e^{-i\omega}-\alpha^2 + \alpha e^{i\omega}-\alpha^2}{1-\alpha e^{-i\omega}-\alpha e^{i\omega}+\alpha^2} \bigg)$$
+
+$$f(\omega) = \frac{\sigma_X^2}{\pi}\bigg(1+\frac{\alpha(e^{-i\omega} + e^{i\omega}-2\alpha)}{1-\alpha (e^{-i\omega}+ e^{i\omega}-\alpha)} \bigg)$$
+
+Now we use the identity,
+
+$$\cos(\omega) = \frac{e^{i\omega}+e^{-i\omega}}{2}$$
+
+to simplify the expression above,
+
+$$f(\omega) = \frac{\sigma_X^2}{\pi}\bigg(1+\frac{\alpha(2\cos(\omega)-2\alpha)}{1-\alpha (2\cos(\omega)-\alpha)} \bigg)$$
+
+$$f(\omega) = \frac{\sigma_X^2}{\pi}\bigg(\frac{(1-\alpha (2\cos(\omega)-\alpha)) + \alpha(2\cos(\omega)-2\alpha)}{1-\alpha (2\cos(\omega)-\alpha)}\bigg)$$
+
+$$f(\omega) = \frac{\sigma_X^2}{\pi}\bigg(\frac{1-\alpha^2}{1-2\alpha \cos(\omega)+\alpha^2)}\bigg)$$
+
+Now, we will show how to simplify the numerator further,
+
+We can re-write the AR(1) process as follows,
+
+$$X_t = Z_t + \alpha Z_{t-1} + \alpha^2 Z_{t-1} + ...$$
+
+So, 
+
+$$Var(X_t) = Var(Z_t + \alpha Z_{t-1} + \alpha^2 Z_{t-1} + ...)$$
+
+$$Var(X_t) = Var(Z_t) + \alpha^2 Var(Z_{t-1}) + \alpha^4 Var(Z_{t-1}) + ...)$$
+
+$$\sigma_X^2 = \sigma^2 + \alpha^2 \sigma^2 + \alpha^4 \sigma^2 + ...)$$
+
+$$\sigma_X^2 = \sigma^2(1 + \alpha^2 + \alpha^4 + ...)$$
+
+By writing the RHS as a sum of an infinite geometric series,
+
+$$\sigma_X^2 = \frac{\sigma^2}{1 - \alpha^2}$$
+
+$\sigma_X^2(1 - \alpha^2) = \sigma^2$, where $\sigma_X^2$ is the variance of $\{X_t\}_{t\in\mathbb{Z}}$ and $\sigma^2$ is the variance of $\{Z_t\}_{t\in\mathbb{Z}}$
+
+Thus, 
+
+$$f(\omega) = \frac{\sigma_X^2}{\pi}\bigg(\frac{1-\alpha^2}{1-2\alpha \cos(\omega)+\alpha^2)}\bigg) = \frac{\sigma^2}{\pi(1-2\alpha \cos(\omega)+\alpha^2)}$$
+
+We have our result,
+
+$$f_X(\omega) = \frac{\sigma^2}{\pi(1-2\alpha\cos(\omega)+\alpha^2)}$$
+
+Substituting for $\alpha = -0.5$, we see that
+
+$$f_X(\omega) = \frac{\sigma^2}{\pi(1+\cos(\omega)+0.25)}=\frac{\sigma^2}{\pi(1.25+\cos(\omega))}$$
+
+A trivial result that we know is that for the WN process $\{Y_t\}_{t\in\mathbb{Z}}$,
+
+$$f_Y(\omega) = \frac{\sigma^2}{\pi}$$
+
+Now, using the result obtained in part (a), we derive the power spectral density function of $\{W_t\}_{t\in\mathbb{Z}}$,
+
+$$f_W(\omega) = f_X(\omega) + f_Y(\omega) = \frac{\sigma^2}{\pi(1.25+\cos(\omega))} + \frac{\sigma^2}{\pi}$$
+
+Thus,
+
+$$f_W(\omega) = \frac{\sigma^2(1+(1.25+\cos(\omega)))}{\pi(1.25+\cos(\omega))} = \frac{\sigma^2(2.25+\cos(\omega))}{\pi(1.25+\cos(\omega))} = \frac{\sigma^2}{\pi}\bigg(1 + \frac{1}{1.25+\cos(\omega)} \bigg)$$
+
+## Question 3
+
+(a)
+
+```{r, include=TRUE}
+#reading in dataset, coercing data into time series object, plotting the time
+#series and its acf
+
+dat <- read.table(file = "C:/Users/Personal/Downloads/soi.txt", skip = 1, 
+                     header = FALSE)
+x <- ts(dat$V2, start = c(1866))
+plot(x, xlab = "year", ylab = "Southern Oscillation Index (SOI)", 
+     main = "Annual SOI between 1866 - 2010")
+acf(x, type = "correlation", main = "ACF plot for SOI data")
+```
+
+The plot of the time series does not show any noticeable trend or seasonality. Furthermore, the acf plot shows that the acf cuts off immediately, suggesting that the data is not correlated.
+
+(b)
+
+```{r periodogram plot, include=TRUE}
+#plotting the periodogram with log vertical scale, and smoothed periodogram by 
+#spans = sqrt(2 * length(x)),
+
+sp = spec.pgram(x, log = "yes", spans = sqrt(2 * length(x)))
+sp$spec[which.max(sp$freq)]
+p = which.max(sp$spec) #frequency index
+sp$freq[p] #frequency at which periodogram is at max (dominating frequency)
+N = length(x)
+w = 2*pi*p/N
+w
+sp$freq[p]
+wavelength = N/p
+which.max(sp$spec)
+```
+
+The largest spike occurs at a frequency of around 0.16, which is confirmed by the output in R. At first, as the frequency increases, so does the spectral density, however at higher frequencies, the spectral density falls. Low-Medium frequencies dominate, as shown by the plot above.
+
+The estimate for the wavelength is $\frac{N}{p} = \frac{145}{24} = 6.04$ years.
+
+The dominating frequency is $0.16$ as calculated by R above, and the angular frequency for the dominating frequency is $1.04$ radians per year (also calculated by R above)
+
+(c)
+
+```{r function that generates Fourier frequency, include=TRUE}
+#Fourier frequency generating function
+
+omega = function(p, df){
+  #the function takes in the given constant p, and the dataset as the inputs
+  #the function outputs the Fourier frequency w_p for the given time series
+  return(2*pi*p/length(df))
+}
+
+omega(10,x)
+```
+
+For $p = 10$, the output (Fourier frequency) is 0.433.
+
+(d)
+
+```{r finding significant Fourier frequencies, include=TRUE}
+#finding significant Fourier frequencies
+
+t <- c(1:N)
+w_p <- c(NULL)
+p_value <- c(NULL)
+#model fitted for N/2 times
+for(p in 1:floor(N/2)) {
+  #fourier frequency
+  w_p[p] <- omega(p, x)
+  #fit linear model using lm()
+  model <- lm(x~(cos(w_p[p]*t) + sin(w_p[p]*t)))
+  #extract f-statistics from model summary
+  f_stat <- summary(model)$fstatistic
+  #extract p-values where Fp ~ F2,N-3
+  p_value[p] <- pf(f_stat[1],2,N-3, lower.tail = F)
+}
+#extract values of p that has a model with p-values less than 0.05
+qualified_p <- which(p_value < 0.05)
+qualified_p
+
+```
+
+Therefore the values of $p$ that give significant Fourier frequencies at the 5% confidence level are 16, 20, 23, 25 and 41.
+
+(e)
+
+```{r creating linear model and finding estimated coefficients, include=TRUE}
+#generating linear model using all significant Fourier frequencies and finding
+#the estimated coefficients
+
+model <- lm(x~(cos(w_p[16]*t) + sin(w_p[16]*t)) + (cos(w_p[20]*t) + sin(w_p[20]*t)) 
+            + (cos(w_p[23]*t) + sin(w_p[23]*t)) + (cos(w_p[25]*t) + sin(w_p[25]*t)) 
+            + (cos(w_p[41]*t) + sin(w_p[41]*t)))
+
+summary(model)
+```
+
+The summary() function provides the estimated coefficients for the linear model that results from using all significant frequencies found in part (d).
+
+$\hat a_0 = -0.05683$, $\hat a_{16} = 0.12266$, $\hat b_{16} = -0.22334$, $\hat a_{20} = 0.21402$, $\hat b_{20} = -0.03790$, $\hat a_{23} = -0.07272$, $\hat b_{23} = 0.20607$, $\hat a_{25} = -0.15147$, $\hat b_{25} = -0.16460$, $\hat a_{41} = 0.21868$, $\hat b_{41} = -0.14669$
+
+(f)
+
+```{r data and fitted values on the same plot, include=TRUE}
+#plotting data and estimated model's fitted values on the same plot
+
+plot(x, ylab = "Southern Oscillation Index (SOI)", main = "Annual SOI between 1866 - 2010")
+lines(1866:2010,fitted(model), lty=2, col = "red")
+legend(
+  "topright",
+  legend = c("Data", "Fitted values"),
+  col = c("black", "red"),
+  lwd = c(1, 1.5),
+  lty = c(1,2),
+  cex = 0.8
+)
+```
